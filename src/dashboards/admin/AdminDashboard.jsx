@@ -18,21 +18,21 @@ export default function AdminDashboard({ onLogout }) {
   const [editingDeptId, setEditingDeptId] = useState(null);
 
   /* ================= BATCH STATE ================= */
-  const [batches, setBatches] = useState([]);
-  const [batchSearch, setBatchSearch] = useState("");
-  const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+const [batches, setBatches] = useState([]);
+const [batchSearch, setBatchSearch] = useState("");
+const [showBatchEditModal, setShowBatchEditModal] = useState(false);
 
-  const emptyBatchForm = {
-    batch_id: "",
-    department_id: "",
-    batch_program: "",
-    admission_year: "",
-    division_in_admission_year: "",
-    batch_status: "active",
-  };
+const emptyBatchForm = {
+  batch_id: "",
+  department_id: "",
+  batch_program: "",
+  admission_year: "",
+  division_in_admission_year: "",
+  batch_status: "active",
+};
 
-  const [batchFormData, setBatchFormData] = useState(emptyBatchForm);
-  const [editingBatchId, setEditingBatchId] = useState(null);
+const [batchFormData, setBatchFormData] = useState(emptyBatchForm);
+const [editingBatchId, setEditingBatchId] = useState(null);
 
 
   /* ================= FETCH ================= */
@@ -451,11 +451,102 @@ export default function AdminDashboard({ onLogout }) {
       )}
     </div>
   );
-}
 
+      /* ================= BATCH FORM HANDLERS ================= */
+      /* ================= BATCH CREATE ================= */
+    async function handleCreateBatch() {
+      const exists = batches.some(
+        (b) => b.batch_id === batchFormData.batch_id
+      );
 
+      if (exists) {
+        alert("Batch already exists.");
+        return;
+      }
 
+      const { error } = await supabase.from("batches").insert([
+        {
+          ...batchFormData,
+          created_at: new Date(),
+          updated_at: null,
+        },
+      ]);
 
+      if (!error) {
+        fetchBatches();
+        setBatchFormData(emptyBatchForm);
+        alert("Batch added");
+      }
+    }
+
+      /* ================= BATCH UPDATE ================= */
+    async function handleUpdateBatch() {
+      const { error } = await supabase
+        .from("batches")
+        .update({
+          ...batchFormData,
+          updated_at: new Date(),
+        })
+        .eq("batch_id", editingBatchId);
+
+      if (!error) {
+        fetchBatches();
+        setShowBatchEditModal(false);
+        setBatchFormData(emptyBatchForm);
+        setEditingBatchId(null);
+        alert("Batch updated");
+      }
+    }
+
+      /* ================= BATCH DELETE ================= */
+    async function handleDeleteBatch(batch_id) {
+      const confirmDelete = window.confirm(
+        "If you delete the batch then all the student info within the batch will vanish from the database"
+      );
+      if (!confirmDelete) return;
+
+      const { error } = await supabase
+        .from("batches")
+        .delete()
+        .eq("batch_id", batch_id);
+
+      if (!error) fetchBatches();
+    }
+
+    /* ================= BATCH FILTER ================= */
+    const filteredBatches = batches.filter((b) =>
+      `${b.batch_id}`.includes(batchSearch)
+    );
+
+    /* ================= BATCH EDIT MODAL ================= */
+    {showBatchEditModal && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+        <div className="bg-white rounded shadow w-400px p-6">
+          <h3 className="text-lg font-semibold mb-4">Edit Batch</h3>
+
+          <input className="border px-3 py-2 rounded w-full mb-3"
+            value={batchFormData.batch_program}
+            onChange={(e)=>setBatchFormData({...batchFormData,batch_program:e.target.value})}
+          />
+
+          <div className="flex justify-end gap-3">
+            <button
+              onClick={()=>setShowBatchEditModal(false)}
+              className="px-4 py-2 border rounded"
+            >
+              No
+            </button>
+            <button
+              onClick={handleUpdateBatch}
+              className="px-4 py-2 bg-blue-600 text-white rounded"
+            >
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  }
 
     /* ================= HELPERS ================= */
 
