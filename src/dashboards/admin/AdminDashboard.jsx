@@ -130,6 +130,73 @@ const [editingBatchId, setEditingBatchId] = useState(null);
       .includes(deptSearch.toLowerCase())
   );
 
+    /* ================= BATCH FORM HANDLERS ================= */
+    /* ================= BATCH CREATE ================= */
+    async function handleCreateBatch() {
+      const exists = batches.some(
+        (b) => b.batch_id === batchFormData.batch_id
+      );
+
+      if (exists) {
+        alert("Batch already exists.");
+        return;
+      }
+
+      const { error } = await supabase.from("batches").insert([
+        {
+          ...batchFormData,
+          created_at: new Date(),
+          updated_at: null,
+        },
+      ]);
+
+      if (!error) {
+        fetchBatches();
+        setBatchFormData(emptyBatchForm);
+        alert("Batch added");
+      }
+    }
+
+      /* ================= BATCH UPDATE ================= */
+    async function handleUpdateBatch() {
+      const { error } = await supabase
+        .from("batches")
+        .update({
+          ...batchFormData,
+          updated_at: new Date(),
+        })
+        .eq("batch_id", editingBatchId);
+
+      if (!error) {
+        fetchBatches();
+        setShowBatchEditModal(false);
+        setBatchFormData(emptyBatchForm);
+        setEditingBatchId(null);
+        alert("Batch updated");
+      }
+    }
+
+      /* ================= BATCH DELETE ================= */
+    async function handleDeleteBatch(batch_id) {
+      const confirmDelete = window.confirm(
+        "If you delete the batch then all the student info within the batch will vanish from the database"
+      );
+      if (!confirmDelete) return;
+
+      const { error } = await supabase
+        .from("batches")
+        .delete()
+        .eq("batch_id", batch_id);
+
+      if (!error) fetchBatches();
+    }
+
+    /* ================= BATCH FILTER ================= */
+    const filteredBatches = batches.filter((b) =>
+      `${b.batch_id}`.includes(batchSearch)
+    );
+
+
   /* ================= DEPARTMENT UI ================= */
   return (
     <div className="min-h-screen flex bg-slate-100">
@@ -295,12 +362,16 @@ const [editingBatchId, setEditingBatchId] = useState(null);
               </button>
             </div>
           </div>
-        ))}
+        ))
+        
+        
+        
+        }
       </div>
     </>
   )}
 
-   {/* ================= BATCH UI ================= */}
+  {/* ================= BATCH UI ================= */}
     {activeSection === "batches" && (
       <>
         <h2 className="text-2xl font-semibold text-slate-800 mb-6">
@@ -403,9 +474,7 @@ const [editingBatchId, setEditingBatchId] = useState(null);
     )}
 </main>
 
-      
-
-      {/* EDIT MODAL */}
+      {/* DEPARTMENT EDIT MODAL */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
           <div className="bg-white rounded shadow w-400px p-6">
@@ -449,76 +518,8 @@ const [editingBatchId, setEditingBatchId] = useState(null);
           </div>
         </div>
       )}
-    </div>
-  );
-
-      /* ================= BATCH FORM HANDLERS ================= */
-      /* ================= BATCH CREATE ================= */
-    async function handleCreateBatch() {
-      const exists = batches.some(
-        (b) => b.batch_id === batchFormData.batch_id
-      );
-
-      if (exists) {
-        alert("Batch already exists.");
-        return;
-      }
-
-      const { error } = await supabase.from("batches").insert([
-        {
-          ...batchFormData,
-          created_at: new Date(),
-          updated_at: null,
-        },
-      ]);
-
-      if (!error) {
-        fetchBatches();
-        setBatchFormData(emptyBatchForm);
-        alert("Batch added");
-      }
-    }
-
-      /* ================= BATCH UPDATE ================= */
-    async function handleUpdateBatch() {
-      const { error } = await supabase
-        .from("batches")
-        .update({
-          ...batchFormData,
-          updated_at: new Date(),
-        })
-        .eq("batch_id", editingBatchId);
-
-      if (!error) {
-        fetchBatches();
-        setShowBatchEditModal(false);
-        setBatchFormData(emptyBatchForm);
-        setEditingBatchId(null);
-        alert("Batch updated");
-      }
-    }
-
-      /* ================= BATCH DELETE ================= */
-    async function handleDeleteBatch(batch_id) {
-      const confirmDelete = window.confirm(
-        "If you delete the batch then all the student info within the batch will vanish from the database"
-      );
-      if (!confirmDelete) return;
-
-      const { error } = await supabase
-        .from("batches")
-        .delete()
-        .eq("batch_id", batch_id);
-
-      if (!error) fetchBatches();
-    }
-
-    /* ================= BATCH FILTER ================= */
-    const filteredBatches = batches.filter((b) =>
-      `${b.batch_id}`.includes(batchSearch)
-    );
-
-    /* ================= BATCH EDIT MODAL ================= */
+    
+    {/* ================= BATCH EDIT MODAL ================= */}
     {showBatchEditModal && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
         <div className="bg-white rounded shadow w-400px p-6">
@@ -545,7 +546,9 @@ const [editingBatchId, setEditingBatchId] = useState(null);
           </div>
         </div>
       </div>
-    )}
+     )}
+    </div>
+    );   
   }
 
     /* ================= HELPERS ================= */
