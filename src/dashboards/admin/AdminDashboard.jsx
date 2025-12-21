@@ -26,9 +26,9 @@ const emptyBatchForm = {
   batch_id: "",
   department_id: "",
   batch_program: "",
-  admission_year: "",
+  admission_month_and_year: "",
+  year_of_admission: "",
   division_in_admission_year: "",
-  batch_status: "active",
 };
 
 const [batchFormData, setBatchFormData] = useState(emptyBatchForm);
@@ -136,6 +136,15 @@ const [editingBatchId, setEditingBatchId] = useState(null);
       const exists = batches.some(
         (b) => b.batch_id === batchFormData.batch_id
       );
+          if (
+        !batchFormData.batch_id ||
+        !batchFormData.department_id ||
+        !batchFormData.batch_program ||
+        !batchFormData.admission_year
+      ) {
+        alert("Please fill all required batch fields");
+        return;
+      }
 
       if (exists) {
         alert("Batch already exists.");
@@ -143,19 +152,24 @@ const [editingBatchId, setEditingBatchId] = useState(null);
       }
 
       const { error } = await supabase.from("batches").insert([
-        {
-          ...batchFormData,
-          created_at: new Date(),
-          updated_at: null,
-        },
-      ]);
+            {
+              ...batchFormData,
+              admission_year: Number(batchFormData.admission_year),
+              created_at: new Date(),
+              updated_at: null,
+            },
+          ]);
 
-      if (!error) {
-        fetchBatches();
-        setBatchFormData(emptyBatchForm);
-        alert("Batch added");
-      }
-    }
+          if (error) {
+            console.error(error);
+            alert(error.message);
+            return;
+          }
+
+          fetchBatches();
+          setBatchFormData(emptyBatchForm);
+          alert("Batch added");
+        }
 
       /* ================= BATCH UPDATE ================= */
     async function handleUpdateBatch() {
@@ -196,6 +210,19 @@ const [editingBatchId, setEditingBatchId] = useState(null);
       `${b.batch_id}`.includes(batchSearch)
     );
 
+/*========s======== SIDEBAR ITEM COMPONENT ================= */
+    function SidebarItem({ title, onClick, active }) {
+      return (
+        <button
+          onClick={onClick}
+          className={`w-full text-left px-4 py-2 rounded ${
+            active ? "bg-blue-600" : "hover:bg-slate-700"
+          }`}
+        >
+          {title}
+        </button>
+      );
+    }
 
   /* ================= DEPARTMENT UI ================= */
   return (
@@ -362,11 +389,7 @@ const [editingBatchId, setEditingBatchId] = useState(null);
               </button>
             </div>
           </div>
-        ))
-        
-        
-        
-        }
+        ))}
       </div>
     </>
   )}
@@ -389,11 +412,41 @@ const [editingBatchId, setEditingBatchId] = useState(null);
               onChange={(e)=>setBatchFormData({...batchFormData,batch_id:e.target.value})}
             />
 
-            <input className="border px-3 py-2 rounded"
-              placeholder="Department ID"
-              value={batchFormData.department_id}
-              onChange={(e)=>setBatchFormData({...batchFormData,department_id:e.target.value})}
-            />
+            {/* Department Selection */}
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Department
+                </label>
+
+                {departments.length === 0 ? (
+                  <div className="border border-red-300 bg-red-50 text-red-700 text-sm px-3 py-2 rounded">
+                    No department is available or created. Please add a department first.
+                  </div>
+                ) : (
+                  <select
+                    className="border px-3 py-2 rounded w-full"
+                    value={batchFormData.department_id}
+                    onChange={(e) =>
+                      setBatchFormData({
+                        ...batchFormData,
+                        department_id: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="">Select Department</option>
+
+                    {departments.map((dept) => (
+                      <option
+                        key={dept.department_id}
+                        value={dept.department_id}
+                      >
+                        {dept.department_id} – {dept.department_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
 
             <input className="border px-3 py-2 rounded"
               placeholder="Program (BE / B.Tech)"
@@ -406,12 +459,57 @@ const [editingBatchId, setEditingBatchId] = useState(null);
               value={batchFormData.admission_year}
               onChange={(e)=>setBatchFormData({...batchFormData,admission_year:e.target.value})}
             />
-
-            <input className="border px-3 py-2 rounded col-span-2"
+            
+              <input className="border px-3 py-2 rounded col-span-2"
               placeholder="Division in Admission Year"
               value={batchFormData.division_in_admission_year}
               onChange={(e)=>setBatchFormData({...batchFormData,division_in_admission_year:e.target.value})}
             />
+            
+
+            <div className="col-span-2">
+  <label className="block text-sm font-medium text-slate-700 mb-1">
+    Batch Status
+  </label>
+
+  <p className="text-xs text-slate-500 mb-2">
+    Select whether this batch is currently active or inactive.
+  </p>
+
+  <div className="flex gap-4">
+    <label className="flex items-center gap-2 cursor-pointer">
+      <input
+        type="radio"
+        name="batch_status"
+        value="active"
+        checked={batchFormData.batch_status === "active"}
+        onChange={(e) =>
+          setBatchFormData({
+            ...batchFormData,
+            batch_status: e.target.value,
+          })
+        }
+      />
+            <span className="text-sm text-green-700 font-medium">Active</span>
+          </label>
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="batch_status"
+              value="inactive"
+              checked={batchFormData.batch_status === "inactive"}
+              onChange={(e) =>
+                setBatchFormData({
+                  ...batchFormData,
+                  batch_status: e.target.value,
+                })
+              }
+            />
+            <span className="text-sm text-red-700 font-medium">Inactive</span>
+          </label>
+        </div>
+      </div>
 
             <button
               onClick={handleCreateBatch}
@@ -439,6 +537,18 @@ const [editingBatchId, setEditingBatchId] = useState(null);
                 <p className="font-semibold">Batch ID: {b.batch_id}</p>
                 <p className="text-sm">
                   Dept: {b.department_id} | {b.batch_program}
+                </p>
+                <p className="text-sm mt-1">
+                  Status:
+                  <span
+                    className={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${
+                      b.batch_status === "active"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    {b.batch_status}
+                  </span>
                 </p>
                 <p className="text-xs text-gray-500 mt-2">
                   Created: {new Date(b.created_at).toLocaleString()}
@@ -477,7 +587,7 @@ const [editingBatchId, setEditingBatchId] = useState(null);
       {/* DEPARTMENT EDIT MODAL */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-          <div className="bg-white rounded shadow w-400px p-6">
+          <div className="bg-white rounded shadow w-96 p-6">
             <h3 className="text-lg font-semibold mb-4">Edit Department</h3>
 
             <input
@@ -522,7 +632,7 @@ const [editingBatchId, setEditingBatchId] = useState(null);
     {/* ================= BATCH EDIT MODAL ================= */}
     {showBatchEditModal && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-        <div className="bg-white rounded shadow w-400px p-6">
+        <div className="bg-white rounded shadow w-96 p-6">
           <h3 className="text-lg font-semibold mb-4">Edit Batch</h3>
 
           <input className="border px-3 py-2 rounded w-full mb-3"
@@ -549,19 +659,7 @@ const [editingBatchId, setEditingBatchId] = useState(null);
      )}
     </div>
     );   
-  }
 
     /* ================= HELPERS ================= */
 
-    function SidebarItem({ title, onClick, active }) {
-      return (
-        <button
-          onClick={onClick}
-          className={`w-full text-left px-4 py-2 rounded ${
-            active ? "bg-blue-600" : "hover:bg-slate-700"
-          }`}
-        >
-          {title}
-        </button>
-      );
-    }
+}
