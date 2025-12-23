@@ -29,6 +29,7 @@ const emptyBatchForm = {
   admission_month_and_year: "",
   year_of_admission: "",
   division_in_admission_year: "",
+  batch_status: "Active",
 };
 
 const [batchFormData, setBatchFormData] = useState(emptyBatchForm);
@@ -150,7 +151,7 @@ const [editingBatchId, setEditingBatchId] = useState(null);
     ...batchFormData,
     admission_month_and_year:
       batchFormData.admission_month_and_year + "-01",
-    batch_status: "active",
+    batch_status: "Active",
   },
 ]);
 
@@ -167,23 +168,38 @@ const [editingBatchId, setEditingBatchId] = useState(null);
 
 
       /* ================= BATCH UPDATE ================= */
-    async function handleUpdateBatch() {
+   async function handleUpdateBatch() {
+      const payload = {
+        department_id: batchFormData.department_id,
+        batch_program: batchFormData.batch_program,
+        year_of_admission: batchFormData.year_of_admission,
+        division_in_admission_year: batchFormData.division_in_admission_year,
+        batch_status: batchFormData.batch_status || "active",
+        admission_month_and_year:
+          batchFormData.admission_month_and_year
+            ? batchFormData.admission_month_and_year + "-01"
+            : null,
+        updated_at: new Date(),
+      };
+
       const { error } = await supabase
         .from("batches")
-        .update({
-          ...batchFormData,
-          updated_at: new Date(),
-        })
+        .update(payload)
         .eq("batch_id", editingBatchId);
 
-      if (!error) {
-        fetchBatches();
-        setShowBatchEditModal(false);
-        setBatchFormData(emptyBatchForm);
-        setEditingBatchId(null);
-        alert("Batch updated");
+      if (error) {
+        console.error(error);
+        alert(error.message);
+        return;
       }
+
+      fetchBatches();
+      setShowBatchEditModal(false);
+      setBatchFormData(emptyBatchForm);
+      setEditingBatchId(null);
+      alert("Batch updated successfully");
     }
+
 
       /* ================= BATCH DELETE ================= */
     async function handleDeleteBatch(batch_id) {
@@ -554,7 +570,15 @@ const [editingBatchId, setEditingBatchId] = useState(null);
                 <button
                   className="text-blue-600"
                   onClick={()=>{
-                    setBatchFormData(b);
+                   setBatchFormData({
+                        batch_id: b.batch_id,
+                        department_id: b.department_id,
+                        batch_program: b.batch_program,
+                        admission_month_and_year: b.admission_month_and_year?.slice(0, 7),
+                        year_of_admission: b.year_of_admission,
+                        division_in_admission_year: b.division_in_admission_year,
+                        batch_status: b.batch_status,
+                      });
                     setEditingBatchId(b.batch_id);
                     setShowBatchEditModal(true);
                   }}
@@ -622,53 +646,137 @@ const [editingBatchId, setEditingBatchId] = useState(null);
       )}
     
     {/* ================= BATCH EDIT MODAL ================= */}
-    {showBatchEditModal && (
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-        <div className="bg-white rounded shadow w-96 p-6">
-          <h3 className="text-lg font-semibold mb-4">Edit Batch</h3>
+   {showBatchEditModal && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+    <div className="bg-white rounded shadow w-96 p-6">
+      <h3 className="text-lg font-semibold mb-4">Edit Batch</h3>
 
-          <input className="border px-3 py-2 rounded w-full mb-3"
-            value={batchFormData.batch_program}
-            onChange={(e)=>setBatchFormData({...batchFormData,batch_program:e.target.value})}
-          />
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-              Batch Status
-            </label>
+      {/* Batch ID (READ ONLY) */}
+      <label className="text-sm font-medium">Batch ID</label>
+      <input
+        className="border px-3 py-2 rounded w-full mb-3 bg-slate-100 cursor-not-allowed"
+        value={batchFormData.batch_id}
+        disabled
+      />
 
-            <select
-              className="border px-3 py-2 rounded w-full mb-4"
-              value={batchFormData.batch_status}
-              onChange={(e) =>
-                setBatchFormData({
-                  ...batchFormData,
-                  batch_status: e.target.value,
-                })
-              }
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+      {/* Department */}
+      <label className="text-sm font-medium">Department</label>
+      <select
+        className="border px-3 py-2 rounded w-full mb-3"
+        value={batchFormData.department_id}
+        onChange={(e) =>
+          setBatchFormData({
+            ...batchFormData,
+            department_id: e.target.value,
+          })
+        }
+      >
+        <option value="">Select Department</option>
+        {departments.map((d) => (
+          <option key={d.department_id} value={d.department_id}>
+            {d.department_id} – {d.department_name}
+          </option>
+        ))}
+      </select>
 
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={()=>setShowBatchEditModal(false)}
-              className="px-4 py-2 border rounded"
-            >
-              No
-            </button>
-            <button
-              onClick={handleUpdateBatch}
-              className="px-4 py-2 bg-blue-600 text-white rounded"
-            >
-              Save Changes
-            </button>
-          </div>
-        </div>
+      {/* Program */}
+      <label className="text-sm font-medium">Program</label>
+      <input
+        className="border px-3 py-2 rounded w-full mb-3"
+        value={batchFormData.batch_program}
+        onChange={(e) =>
+          setBatchFormData({
+            ...batchFormData,
+            batch_program: e.target.value,
+          })
+        }
+      />
+
+      {/* Admission Month & Year */}
+      <label className="text-sm font-medium">Admission Month & Year</label>
+      <input
+        type="month"
+        className="border px-3 py-2 rounded w-full mb-3"
+        value={batchFormData.admission_month_and_year?.slice(0, 7)}
+        onChange={(e) =>
+          setBatchFormData({
+            ...batchFormData,
+            admission_month_and_year: e.target.value,
+          })
+        }
+      />
+
+      {/* Admission Type */}
+      <label className="text-sm font-medium">Admission Type</label>
+      <select
+        className="border px-3 py-2 rounded w-full mb-3"
+        value={batchFormData.year_of_admission}
+        onChange={(e) =>
+          setBatchFormData({
+            ...batchFormData,
+            year_of_admission: e.target.value,
+          })
+        }
+      >
+        <option value="">Select</option>
+        <option value="FY">FY</option>
+        <option value="DSY">DSY</option>
+      </select>
+
+      {/* Division */}
+      <label className="text-sm font-medium">Division</label>
+      <select
+        className="border px-3 py-2 rounded w-full mb-3"
+        value={batchFormData.division_in_admission_year}
+        onChange={(e) =>
+          setBatchFormData({
+            ...batchFormData,
+            division_in_admission_year: e.target.value,
+          })
+        }
+      >
+        <option value="">None</option>
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+        <option value="D">D</option>
+      </select>
+
+      {/* Status */}
+      <label className="text-sm font-medium">Batch Status</label>
+      <select
+        className="border px-3 py-2 rounded w-full mb-4"
+        value={batchFormData.batch_status}
+        onChange={(e) =>
+          setBatchFormData({
+            ...batchFormData,
+            batch_status: e.target.value,
+          })
+        }
+      >
+        <option value="active">Active</option>
+        <option value="deactive">Deactive</option>
+      </select>
+
+      {/* Actions */}
+      <div className="flex justify-end gap-3">
+        <button
+          onClick={() => setShowBatchEditModal(false)}
+          className="px-4 py-2 border rounded"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleUpdateBatch}
+          className="px-4 py-2 bg-blue-600 text-white rounded"
+        >
+          Save Changes
+        </button>
       </div>
-     )}
     </div>
+  </div>
+)}
+</div>
     );   
-
-    /* ================= HELPERS ================= */
 
 }
