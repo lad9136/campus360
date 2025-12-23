@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 
 export default function AdminDashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState("departments");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   /* ================= DEPARTMENT STATE ================= */
   const [departments, setDepartments] = useState([]);
@@ -21,6 +22,7 @@ export default function AdminDashboard({ onLogout }) {
 const [batches, setBatches] = useState([]);
 const [batchSearch, setBatchSearch] = useState("");
 const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+const [savingBatch, setSavingBatch] = useState(false);
 
 const emptyBatchForm = {
   batch_id: "",
@@ -29,11 +31,21 @@ const emptyBatchForm = {
   admission_month_and_year: "",
   year_of_admission: "",
   division_in_admission_year: "",
-  batch_status: "Active",
+  batch_status: "active",
 };
 
 const [batchFormData, setBatchFormData] = useState(emptyBatchForm);
 const [editingBatchId, setEditingBatchId] = useState(null);
+const [openActionBatchId, setOpenActionBatchId] = useState(null);
+
+useEffect(() => {
+  function closeMenu() {
+    setOpenActionBatchId(null);
+  }
+
+  document.addEventListener("click", closeMenu);
+  return () => document.removeEventListener("click", closeMenu);
+}, []);
 
 
   /* ================= FETCH ================= */
@@ -132,9 +144,27 @@ const [editingBatchId, setEditingBatchId] = useState(null);
   );
 
     /* ================= BATCH FORM HANDLERS ================= */
-    /* ================= BATCH CREATE ================= */
+    function isValidAdmissionDate(selectedDate) {
+  if (!selectedDate) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const selected = new Date(selectedDate);
+  selected.setHours(0, 0, 0, 0);
+
+  const pastLimit = new Date();
+  pastLimit.setMonth(pastLimit.getMonth() - 4);
+
+  const futureLimit = new Date();
+  futureLimit.setMonth(futureLimit.getMonth() + 1);
+
+  return selected >= pastLimit && selected <= futureLimit;
+}
+  /* ================= BATCH CREATE ================= */
     async function handleCreateBatch() {
-  if (
+     
+      if (
     !batchFormData.batch_id ||
     !batchFormData.department_id ||
     !batchFormData.batch_program ||
@@ -150,8 +180,8 @@ const [editingBatchId, setEditingBatchId] = useState(null);
   {
     ...batchFormData,
     admission_month_and_year:
-      batchFormData.admission_month_and_year + "-01",
-    batch_status: "Active",
+      batchFormData.admission_month_and_year,
+    batch_status: "active",
   },
 ]);
 
@@ -168,7 +198,20 @@ const [editingBatchId, setEditingBatchId] = useState(null);
 
 
       /* ================= BATCH UPDATE ================= */
-   async function handleUpdateBatch() {
+ async function handleUpdateBatch() {
+     if (!isValidAdmissionDate(batchFormData.admission_month_and_year)) {
+  alert(
+    "Invalid admission date.\n\n" +
+    "- Only up to 4 months in past allowed\n" +
+    "- Current month allowed\n" +
+    "- Only 1 month in future allowed"
+  );
+  return;
+}
+
+
+     setSavingBatch(true);
+
       const payload = {
         department_id: batchFormData.department_id,
         batch_program: batchFormData.batch_program,
@@ -177,7 +220,7 @@ const [editingBatchId, setEditingBatchId] = useState(null);
         batch_status: batchFormData.batch_status || "active",
         admission_month_and_year:
           batchFormData.admission_month_and_year
-            ? batchFormData.admission_month_and_year + "-01"
+            ? batchFormData.admission_month_and_year
             : null,
         updated_at: new Date(),
       };
@@ -188,18 +231,21 @@ const [editingBatchId, setEditingBatchId] = useState(null);
         .eq("batch_id", editingBatchId);
 
       if (error) {
-        console.error(error);
+        setSavingBatch(false);
         alert(error.message);
         return;
       }
 
-      fetchBatches();
-      setShowBatchEditModal(false);
-      setBatchFormData(emptyBatchForm);
-      setEditingBatchId(null);
-      alert("Batch updated successfully");
-    }
+      // 🔥 FAST UI UPDATE (NO RE-FETCH)
+      setBatches((prev) =>
+        prev.map((b) =>
+          b.batch_id === editingBatchId ? { ...b, ...payload } : b
+        )
+      );
 
+      setSavingBatch(false);
+      setShowBatchEditModal(false);
+    }
 
       /* ================= BATCH DELETE ================= */
     async function handleDeleteBatch(batch_id) {
@@ -225,7 +271,10 @@ const [editingBatchId, setEditingBatchId] = useState(null);
     function SidebarItem({ title, onClick, active }) {
       return (
         <button
-          onClick={onClick}
+            onClick={() => {
+              onClick();
+              setSidebarOpen(false); // close on mobile
+            }}
           className={`w-full text-left px-4 py-2 rounded ${
             active ? "bg-blue-600" : "hover:bg-slate-700"
           }`}
@@ -239,7 +288,21 @@ const [editingBatchId, setEditingBatchId] = useState(null);
   return (
     <div className="min-h-screen flex bg-slate-100">
       {/* SIDEBAR */}
-      <aside className="w-72 bg-slate-900 text-white flex flex-col">
+        {sidebarOpen && (
+            <div
+              className="fixed inset-0 bg-black/40 z-30 md:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+          <aside
+          className={`
+            fixed inset-y-0 left-0 z-40
+            w-72 bg-slate-900 text-white flex flex-col
+            transform transition-transform duration-300
+            ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
+            md:translate-x-0 md:static
+          `}
+        >
         <div className="px-6 py-5 text-xl font-bold border-b border-slate-700">
           Campus360 Admin
         </div>
@@ -306,7 +369,20 @@ const [editingBatchId, setEditingBatchId] = useState(null);
       </aside>
 
       {/* MAIN */}
-<main className="flex-1 p-8">
+<main className="flex-1 p-4 md:p-8">
+  {/* Mobile Header */}
+<div className="md:hidden flex items-center mb-4">
+  <button
+    onClick={() => setSidebarOpen(true)}
+    className="p-2 rounded hover:bg-slate-200"
+  >
+    ☰
+  </button>
+  <h1 className="ml-3 text-lg font-semibold text-slate-800">
+    Admin Dashboard
+  </h1>
+</div>
+
   {activeSection === "departments" && (
     <>
       {/* HEADER */}
@@ -472,9 +548,14 @@ const [editingBatchId, setEditingBatchId] = useState(null);
 
 
             <input
-              type="month"
-              min="2021-01"
+              type="date"
               className="border px-3 py-2 rounded"
+              min={new Date(new Date().setMonth(new Date().getMonth() - 4))
+                .toISOString()
+                .split("T")[0]}
+              max={new Date(new Date().setMonth(new Date().getMonth() + 1))
+                .toISOString()
+                .split("T")[0]}
               value={batchFormData.admission_month_and_year}
               onChange={(e) =>
                 setBatchFormData({
@@ -483,6 +564,7 @@ const [editingBatchId, setEditingBatchId] = useState(null);
                 })
               }
             />
+
             
 
             <select
@@ -541,58 +623,128 @@ const [editingBatchId, setEditingBatchId] = useState(null);
           {filteredBatches.map((b)=>(
             <div key={b.batch_id}
               className="bg-white rounded shadow p-4 flex justify-between">
-              <div>
-                <p className="font-semibold">Batch ID: {b.batch_id}</p>
-                <p className="text-sm">
-                  Dept: {b.department_id} | {b.batch_program}
-                </p>
-                <p className="text-sm mt-1">
-                  Status:
-                  <span
-                    className={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${
-                      b.batch_status === "active"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {b.batch_status}
-                  </span>
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Created: {new Date(b.created_at).toLocaleString()}
-                  {b.updated_at && (
-                    <> | Updated: {new Date(b.updated_at).toLocaleString()}</>
-                  )}
-                </p>
-              </div>
+             <div className="space-y-1 text-sm">
+  {/* Primary Identifier */}
+  <p className="text-base font-semibold text-slate-900">
+    {b.batch_id}
+  </p>
 
-              <div className="flex flex-col gap-2">
-                <button
-                  className="text-blue-600"
-                  onClick={()=>{
-                   setBatchFormData({
-                        batch_id: b.batch_id,
-                        department_id: b.department_id,
-                        batch_program: b.batch_program,
-                        admission_month_and_year: b.admission_month_and_year?.slice(0, 7),
-                        year_of_admission: b.year_of_admission,
-                        division_in_admission_year: b.division_in_admission_year,
-                        batch_status: b.batch_status,
-                      });
-                    setEditingBatchId(b.batch_id);
-                    setShowBatchEditModal(true);
-                  }}
-                >
-                  Edit
-                </button>
+  {/* Metadata grid */}
+  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-slate-600">
+    <p>
+      <span className="text-slate-500">Department</span>
+      <span className="ml-1 font-medium text-slate-800">
+        {b.department_id}
+      </span>
+    </p>
 
-                <button
-                  className="text-red-600"
-                  onClick={()=>handleDeleteBatch(b.batch_id)}
-                >
-                  Delete
-                </button>
-              </div>
+    <p>
+      <span className="text-slate-500">Program</span>
+      <span className="ml-1 font-medium text-slate-800">
+        {b.batch_program}
+      </span>
+    </p>
+
+    <p>
+      <span className="text-slate-500">Admission Date</span>
+      <span className="ml-1 font-medium text-slate-800">
+        {b.admission_month_and_year
+          ? new Date(b.admission_month_and_year).toLocaleDateString()
+          : "—"}
+      </span>
+    </p>
+
+    <p>
+      <span className="text-slate-500">Admission Type</span>
+      <span className="ml-1 font-medium text-slate-800">
+        {b.year_of_admission || "—"}
+      </span>
+    </p>
+
+    <p>
+      <span className="text-slate-500">Division</span>
+      <span className="ml-1 font-medium text-slate-800">
+        {b.division_in_admission_year || "—"}
+      </span>
+    </p>
+  </div>
+
+  {/* Status */}
+  <div className="pt-1">
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+        b.batch_status === "active"
+          ? "bg-green-100 text-green-700"
+          : "bg-red-100 text-red-700"
+      }`}
+    >
+      {b.batch_status}
+    </span>
+  </div>
+
+  {/* Audit */}
+  <p className="text-xs text-slate-400 pt-1">
+    Created: {new Date(b.created_at).toLocaleString()}
+    {b.updated_at && (
+      <> · Updated: {new Date(b.updated_at).toLocaleString()}</>
+    )}
+  </p>
+</div>
+
+
+
+             <div className="relative">
+  {/* Actions button */}
+    <button
+      onClick={(e) => {
+        e.stopPropagation(); // 👈 IMPORTANT
+        setOpenActionBatchId(
+          openActionBatchId === b.batch_id ? null : b.batch_id
+        );
+      }}
+      className="p-2 rounded hover:bg-slate-100 text-slate-600"
+    >
+      ⋮
+    </button>
+
+
+
+  {/* Dropdown */}
+  {openActionBatchId === b.batch_id && (
+    <div className="absolute right-0 mt-2 w-32 bg-white border border-slate-200 rounded shadow-md z-20">
+      <button
+        className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100"
+        onClick={() => {
+          setBatchFormData({
+            batch_id: b.batch_id,
+            department_id: b.department_id,
+            batch_program: b.batch_program,
+            admission_month_and_year: b.admission_month_and_year?.slice(0, 7),
+            year_of_admission: b.year_of_admission,
+            division_in_admission_year: b.division_in_admission_year,
+            batch_status: b.batch_status,
+          });
+          setEditingBatchId(b.batch_id);
+          setShowBatchEditModal(true);
+          setOpenActionBatchId(null);
+        }}
+      >
+        Edit
+      </button>
+
+      <button
+        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+        onClick={() => {
+          handleDeleteBatch(b.batch_id);
+          setOpenActionBatchId(null);
+        }}
+      >
+        Delete
+      </button>
+    </div>
+  )}
+</div>
+
             </div>
           ))}
         </div>
@@ -695,16 +847,24 @@ const [editingBatchId, setEditingBatchId] = useState(null);
       {/* Admission Month & Year */}
       <label className="text-sm font-medium">Admission Month & Year</label>
       <input
-        type="month"
-        className="border px-3 py-2 rounded w-full mb-3"
-        value={batchFormData.admission_month_and_year?.slice(0, 7)}
-        onChange={(e) =>
-          setBatchFormData({
-            ...batchFormData,
-            admission_month_and_year: e.target.value,
-          })
-        }
-      />
+          type="date"
+          className="border px-3 py-2 rounded w-full mb-3"
+          min={new Date(new Date().setMonth(new Date().getMonth() - 4))
+            .toISOString()
+            .split("T")[0]}
+          max={new Date(new Date().setMonth(new Date().getMonth() + 1))
+            .toISOString()
+            .split("T")[0]}
+          value={batchFormData.admission_month_and_year}
+          onChange={(e) =>
+            setBatchFormData({
+              ...batchFormData,
+              admission_month_and_year: e.target.value,
+            })
+          }
+        />
+
+
 
       {/* Admission Type */}
       <label className="text-sm font-medium">Admission Type</label>
@@ -767,11 +927,12 @@ const [editingBatchId, setEditingBatchId] = useState(null);
           Cancel
         </button>
         <button
-          onClick={handleUpdateBatch}
-          className="px-4 py-2 bg-blue-600 text-white rounded"
-        >
-          Save Changes
-        </button>
+            onClick={handleUpdateBatch}
+            disabled={savingBatch}
+            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-60"
+          >
+            {savingBatch ? "Saving..." : "Save Changes"}
+          </button>
       </div>
     </div>
   </div>
