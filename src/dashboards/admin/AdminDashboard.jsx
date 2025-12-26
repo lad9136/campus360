@@ -1,10 +1,28 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
+/*========s======== SIDEBAR ITEM COMPONENT ================= */
+    function SidebarItem({ title, onClick, active, closeSidebar }) {
+  return (
+          <button
+            onClick={() => {
+              onClick();
+              if (closeSidebar) closeSidebar();
+            }}
+            className={`w-full text-left px-4 py-2 rounded ${
+              active ? "bg-blue-600" : "hover:bg-slate-700"
+            }`}
+          >
+            {title}
+          </button>
+        );
+      }
+
+
 export default function AdminDashboard({ onLogout }) {
   const [activeSection, setActiveSection] = useState("departments");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
+  
   /* ================= DEPARTMENT STATE ================= */
   const [departments, setDepartments] = useState([]);
   const [deptSearch, setDeptSearch] = useState("");
@@ -19,49 +37,91 @@ export default function AdminDashboard({ onLogout }) {
   const [editingDeptId, setEditingDeptId] = useState(null);
 
   /* ================= BATCH STATE ================= */
-const [batches, setBatches] = useState([]);
-const [batchSearch, setBatchSearch] = useState("");
-const [showBatchEditModal, setShowBatchEditModal] = useState(false);
-const [savingBatch, setSavingBatch] = useState(false);
+  const [batches, setBatches] = useState([]);
+  const [batchSearch, setBatchSearch] = useState("");
+  const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+  const [savingBatch, setSavingBatch] = useState(false);
 
-const emptyBatchForm = {
-  batch_id: "",
-  department_id: "",
-  batch_program: "",
-  admission_month_and_year: "",
-  year_of_admission: "",
-  division_in_admission_year: "",
-  batch_status: "active",
-};
-
-const [batchFormData, setBatchFormData] = useState(emptyBatchForm);
-const [editingBatchId, setEditingBatchId] = useState(null);
-const [openActionBatchId, setOpenActionBatchId] = useState(null);
-
-useEffect(() => {
-  function closeMenu() {
-    setOpenActionBatchId(null);
+  const emptyBatchForm = {
+    batch_id: "",
+    department_id: "",
+    batch_program: "",
+    admission_month_and_year: "",
+    year_of_admission: "",
+    division_in_admission_year: "",
+    batch_status: "active",
+  };
+  
+  const [loading, setLoading] = useState(true);
+   useEffect(() => {
+  async function loadAll() {
+    await Promise.all([
+      fetchDepartments(),
+      fetchBatches(),
+      fetchUsers(),
+    ]);
+    setLoading(false);
   }
 
-  document.addEventListener("click", closeMenu);
-  return () => document.removeEventListener("click", closeMenu);
+  loadAll();
 }, []);
+
+  /* ================= USER MANAGEMENT ================= */
+    const [users, setUsers] = useState([]);
+
+    const emptyUserForm = {
+      email: "",
+      role: "",
+      department_id: "",
+      status: "pending",
+    };
+ 
+  const [userForm, setUserForm] = useState(emptyUserForm);
+  
+  const ADMIN_MANAGED_ROLES = [
+  { value: "exam_cell", label: "Exam Cell" },
+  { value: "admission_officer", label: "Admission Officer" },
+  { value: "receptionist", label: "Receptionist (Degree Office)" },
+  { value: "scholarship_officer", label: "Scholarship Officer" },
+  { value: "accountant", label: "Accountant" },
+  { value: "library_officer", label: "Library Officer" },
+  { value: "sports_officer", label: "Sports Officer" },
+  { value: "hostel_warden", label: "Hostel Warden" },
+  { value: "guard", label: "Guard" }
+  ];
+
+  /* ================= BATCH FORM DATA ================= */
+  const [batchFormData, setBatchFormData] = useState(emptyBatchForm);
+  const [editingBatchId, setEditingBatchId] = useState(null);
+  const [openActionBatchId, setOpenActionBatchId] = useState(null);
+
+  useEffect(() => {
+    function closeMenu() {
+      setOpenActionBatchId(null);
+    }
+
+    document.addEventListener("mousedown", closeMenu);
+    return () => document.removeEventListener("mousedown", closeMenu);
+  }, []);
 
 
   /* ================= FETCH ================= */
   useEffect(() => {
     fetchDepartments();
     fetchBatches();
+    fetchUsers();
   }, []);
 
   async function fetchDepartments() {
-    const { data, error } = await supabase
-      .from("departments")
-      .select("*")
-      .order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from("departments")
+    .select("*");
 
-    if (!error) setDepartments(data || []);
-  }
+  console.log("departments:", data, error);
+
+  if (!error) setDepartments(data || []);
+}
+
 
   async function fetchBatches() {
   const { data, error } = await supabase
@@ -70,8 +130,42 @@ useEffect(() => {
     .order("created_at", { ascending: false });
 
   if (!error) setBatches(data || []);
-}
-  
+  }
+
+  async function fetchUsers() {
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, role, status, department_id, created_at");
+
+  setUsers(data || []);
+  }
+
+  // /* ================= USER CREATE ================= */
+  // async function handleCreateUser() {
+  //     // 1. Create auth user (Magic Link ready)
+  //     const { data, error } = await supabase.auth.admin.createUser({
+  //       email: userForm.email,
+  //       email_confirm: true,
+  //     });
+
+  //     if (error) {
+  //       alert(error.message);
+  //       return;
+  //     }
+
+  //     // 2. Create profile
+  //     await supabase.from("profiles").insert({
+  //       id: data.user.id,
+  //       role: userForm.role,
+  //       department_id: userForm.department_id || null,
+  //       status: "active",
+  //     });
+
+  //     fetchUsers();
+  //     setUserForm(emptyUserForm);
+  //     setShowUserModal(false);
+  //   }
+
   /* ================= DEPARTMENT FORM HANDLERS ================= */
   /* ================= DEPARTMENT CREATE ================= */
   async function handleCreateDepartment() {
@@ -236,7 +330,7 @@ useEffect(() => {
         return;
       }
 
-      // 🔥 FAST UI UPDATE (NO RE-FETCH)
+      // FAST UI UPDATE (NO RE-FETCH)
       setBatches((prev) =>
         prev.map((b) =>
           b.batch_id === editingBatchId ? { ...b, ...payload } : b
@@ -267,26 +361,17 @@ useEffect(() => {
       `${b.batch_id}`.includes(batchSearch)
     );
 
-/*========s======== SIDEBAR ITEM COMPONENT ================= */
-    function SidebarItem({ title, onClick, active }) {
-      return (
-        <button
-            onClick={() => {
-              onClick();
-              setSidebarOpen(false); // close on mobile
-            }}
-          className={`w-full text-left px-4 py-2 rounded ${
-            active ? "bg-blue-600" : "hover:bg-slate-700"
-          }`}
-        >
-          {title}
-        </button>
-      );
-    }
+if (loading) {
+  return (
+    <div className="h-screen flex items-center justify-center text-lg font-semibold">
+      Loading Admin Dashboard...
+    </div>
+  );
+}
 
   /* ================= DEPARTMENT UI ================= */
   return (
-    <div className="min-h-screen flex bg-slate-100">
+<div className="h-screen flex bg-slate-100 overflow-hidden">
       {/* SIDEBAR */}
         {sidebarOpen && (
             <div
@@ -312,48 +397,57 @@ useEffect(() => {
             title="Department Management"
             active={activeSection === "departments"}
             onClick={() => setActiveSection("departments")}
+            closeSidebar={() => setSidebarOpen(false)}
           />
+
 
           <SidebarItem
             title="Batch Management"
             active={activeSection === "batches"}
             onClick={() => setActiveSection("batches")}
+            closeSidebar={() => setSidebarOpen(false)}
           />
 
           <SidebarItem
             title="Add User"
             active={activeSection === "add-user"}
             onClick={() => setActiveSection("add-user")}
+            closeSidebar={() => setSidebarOpen(false)}
           />
 
           <SidebarItem
             title="Global Notice"
             active={activeSection === "global-notice"}
             onClick={() => setActiveSection("global-notice")}
+            closeSidebar={() => setSidebarOpen(false)}
           />
 
           <SidebarItem
             title="Data Backup"
             active={activeSection === "data-backup"}
             onClick={() => setActiveSection("data-backup")}
+            closeSidebar={() => setSidebarOpen(false)}
           />
 
           <SidebarItem
             title="Complaints & Messages"
             active={activeSection === "complaints"}
             onClick={() => setActiveSection("complaints")}
+            closeSidebar={() => setSidebarOpen(false)}
           />
 
           <SidebarItem
             title="Audit Logs"
             active={activeSection === "audit-logs"}
             onClick={() => setActiveSection("audit-logs")}
+            closeSidebar={() => setSidebarOpen(false)}
           />
 
           <SidebarItem
             title="Profile Settings"
             active={activeSection === "profile-settings"}
             onClick={() => setActiveSection("profile-settings")}
+            closeSidebar={() => setSidebarOpen(false)}
           />
         </nav>
 
@@ -369,7 +463,7 @@ useEffect(() => {
       </aside>
 
       {/* MAIN */}
-<main className="flex-1 p-4 md:p-8">
+<main className="flex-1 p-4 md:p-8 md:ml-72 overflow-y-auto h-full">
   {/* Mobile Header */}
 <div className="md:hidden flex items-center mb-4">
   <button
@@ -750,11 +844,91 @@ useEffect(() => {
         </div>
       </>
     )}
+
+{activeSection === "add-user" && (
+  <>
+    <h2 className="text-2xl font-semibold text-slate-800 mb-6">
+      User Management
+    </h2>
+
+    {/* ADD USER CARD */}
+    <div className="bg-white rounded shadow p-6 mb-6">
+      <h3 className="text-lg font-semibold mb-4">Create User</h3>
+
+      <div className="grid grid-cols-2 gap-4">
+        <input
+          type="email"
+          placeholder="Official Email ID"
+          className="border px-3 py-2 rounded col-span-2"
+          value={userForm.email}
+          onChange={(e) =>
+            setUserForm({ ...userForm, email: e.target.value })
+          }
+        />
+
+        <select
+          className="border px-3 py-2 rounded"
+          value={userForm.role}
+          onChange={(e) =>
+            setUserForm({ ...userForm, role: e.target.value })
+          }
+        >
+          <option value="">Select Role</option>
+          {ADMIN_MANAGED_ROLES.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className="border px-3 py-2 rounded"
+          value={userForm.status}
+          onChange={(e) =>
+            setUserForm({ ...userForm, status: e.target.value })
+          }
+        >
+          <option value="active">Active</option>
+          <option value="blocked">Blocked</option>
+        </select>
+
+        {/* <button
+          onClick={handleCreateUser}
+          className="col-span-2 bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+        >
+          Create User & Send Magic Link
+        </button> */}
+      </div>
+    </div>
+
+    {/* USER LIST */}
+    <div className="bg-white rounded shadow p-6">
+      <h3 className="text-lg font-semibold mb-4">Existing Users</h3>
+
+      <div className="grid gap-3">
+        {users.map((u) => (
+          <div
+            key={u.id}
+            className="flex justify-between items-center border rounded p-3"
+          >
+            <div>
+              <p className="font-medium">{u.role}</p>
+              <p className="text-sm text-slate-500">
+                Status: {u.status}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </>
+)}
 </main>
+
 
       {/* DEPARTMENT EDIT MODAL */}
       {showEditModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+<div className="fixed inset-0 bg-black/40 flex items-center justify-center overflow-y-auto">
           <div className="bg-white rounded shadow w-96 p-6">
             <h3 className="text-lg font-semibold mb-4">Edit Department</h3>
 
@@ -799,7 +973,7 @@ useEffect(() => {
     
     {/* ================= BATCH EDIT MODAL ================= */}
    {showBatchEditModal && (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+<div className="fixed inset-0 bg-black/40 flex items-center justify-center overflow-y-auto">
     <div className="bg-white rounded shadow w-96 p-6">
       <h3 className="text-lg font-semibold mb-4">Edit Batch</h3>
 
@@ -933,11 +1107,10 @@ useEffect(() => {
           >
             {savingBatch ? "Saving..." : "Save Changes"}
           </button>
-      </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-)}
-</div>
-    );   
-
+  );
 }

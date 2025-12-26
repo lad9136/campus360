@@ -1,7 +1,9 @@
-import { useState, useEffect} from "react";
+import { supabase } from "@/lib/supabase";
+import { useState, useEffect } from "react";
 import { Menu, X, LogIn, Eye, EyeOff } from "lucide-react";
-import { loginUser, logoutUser,getCurrentSession} from "./auth/authService";
+import { loginUser, logoutUser, getCurrentSession } from "./auth/authService";
 import DashboardRouter from "./dashboards/DashboardRouter";
+import SetupPassword from "./auth/SetupPassword";
 
 export default function App() {
   /* -------------------- UI STATE -------------------- */
@@ -15,24 +17,49 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // session = { user, role }
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
-  
+
+  /* -------------------- RESTORE SESSION -------------------- */
   useEffect(() => {
-    async function restoreSession() {
-      const existingSession = await getCurrentSession();
-
-      if (existingSession) {
-        setSession(existingSession);
-      }
-
+    // Do not interfere with password setup
+    if (window.location.pathname === "/setup-password") {
       setAuthLoading(false);
+      return;
     }
 
-      restoreSession();
-    }, []);
+    async function restoreSession() {
+      try {
+        const existingSession = await getCurrentSession();
 
+        if (!existingSession) {
+          setAuthLoading(false);
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role, status")
+          .eq("id", existingSession.user.id)
+          .single();
+
+        if (!profile || profile.status !== "active") {
+          await logoutUser();
+          setSession(null);              // 🔑 important
+          setAuthLoading(false);
+          return;
+        }
+
+
+        setSession({ ...existingSession, role: profile.role });
+        setAuthLoading(false);
+      } catch {
+        setAuthLoading(false);
+      }
+    }
+
+    restoreSession();
+  }, []);
 
   /* -------------------- LOGIN -------------------- */
   const handleLogin = async () => {
@@ -43,9 +70,24 @@ export default function App() {
 
     try {
       const sessionData = await loginUser(email, password);
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("status, role")
+        .eq("id", sessionData.user.id)
+        .single();
+
+      if (!profile || profile.status !== "active") {
+        await logoutUser();
+        throw new Error("Account not active. Contact admin.");
+      }
+
       setSession(sessionData);
       setShowLoginForm(false);
       setSidebarOpen(false);
+
+      // Explicit dashboard navigation
+      window.location.href = "/dashboard";
     } catch (err) {
       setError(err.message || "Login failed");
     } finally {
@@ -53,23 +95,32 @@ export default function App() {
     }
   };
 
-
   /* -------------------- LOGOUT -------------------- */
   const handleLogout = async () => {
     await logoutUser();
     setSession(null);
+    window.location.href = "/";
   };
 
-  /* -------------------- ROLE DASHBOARD -------------------- */
-   if (authLoading) {
-  return (
-    <div className="min-h-screen flex items-center justify-center text-lg font-semibold">
-      Loading...
-    </div>
-  );
+  /* -------------------- LOADING -------------------- */
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-lg font-semibold">
+        Loading...
+      </div>
+    );
   }
 
-  if (session) {
+  /* -------------------- PASSWORD SETUP -------------------- */
+  if (window.location.pathname === "/setup-password") {
+    return <SetupPassword />;
+  }
+
+  /* -------------------- DASHBOARD ROUTE -------------------- */
+  const isDashboardRoute =
+    window.location.pathname.startsWith("/dashboard");
+
+  if (session && isDashboardRoute) {
     return (
       <DashboardRouter
         role={session.role}
@@ -78,7 +129,7 @@ export default function App() {
     );
   }
 
-  /* -------------------- PUBLIC HOMEPAGE -------------------- */
+  /* -------------------- PUBLIC COLLEGE WEBSITE -------------------- */
   return (
     <div className="min-h-screen bg-gray-50">
       {/* HEADER */}
@@ -186,19 +237,17 @@ export default function App() {
               </span>
             </div>
 
-              {/*log in button*/}
-              <button
-                onClick={handleLogin}
-                disabled={isLoggingIn}
-                className={`w-full py-2 rounded text-white ${
-                  isLoggingIn
-                    ? "bg-blue-400 cursor-not-allowed"
-                    : "bg-blue-600 hover:bg-blue-700"
-                }`}
-              >
-                {isLoggingIn ? "Logging in..." : "Login"}
-              </button>
-
+            <button
+              onClick={handleLogin}
+              disabled={isLoggingIn}
+              className={`w-full py-2 rounded text-white ${
+                isLoggingIn
+                  ? "bg-blue-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              {isLoggingIn ? "Logging in..." : "Login"}
+            </button>
 
             {error && (
               <p className="text-red-500 text-sm text-center mt-3">

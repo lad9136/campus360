@@ -27,7 +27,7 @@ export async function loginUser(email, password) {
 export async function logoutUser() {
   await supabase.auth.signOut();
 }
- // Line 33
+ 
 export async function getCurrentSession() {
   const {
     data: { session },
